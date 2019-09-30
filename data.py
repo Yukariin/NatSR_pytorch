@@ -4,6 +4,8 @@ from os.path import join
 import numpy as np
 from PIL import Image
 import torch.utils.data as data
+from torchvision.transforms import RandomCrop, Resize
+from torchvision.transforms.functional import to_tensor
 
 
 def is_image_file(filename):
@@ -11,28 +13,24 @@ def is_image_file(filename):
 
 
 class DatasetFromFolder(data.Dataset):
-    def __init__(self, image_dir, input_transform=None, target_transform=None):
+    def __init__(self, image_dir, patch_size=48, scale_factor=4, interpolation=Image.BICUBIC):
         super().__init__()
 
         self.samples = [join(image_dir, x) for x in listdir(image_dir) if is_image_file(x)]
-
-        self.input_transform = input_transform
-        self.target_transform = target_transform
+        self.cropper = RandomCrop(size=patch_size*scale_factor)
+        self.resizer = Resize(patch_size, interpolation)
 
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, index):
         sample_path = self.samples[index]
-        input = Image.open(sample_path).convert('RGB')
-        target = input.copy()
+        img = Image.open(sample_path).convert('RGB')
+        target = self.cropper(img)
+        input = target.copy()
+        input = self.resizer(input)
 
-        if self.input_transform:
-            input = self.input_transform(input)
-        if self.target_transform:
-            target = self.target_transform(target)
-
-        return input, target
+        return to_tensor(input), to_tensor(target)
 
 
 class InfiniteSampler(data.sampler.Sampler):
