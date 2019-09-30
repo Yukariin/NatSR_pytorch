@@ -40,8 +40,10 @@ class RDBlock(nn.Module):
 
 
 class NSRNet(nn.Module):
-    def __init__(self, c_img=3, n_feat=64, num_dense=5, dense_out=64, scale=2):
+    def __init__(self, c_img=3, n_feat=64, num_dense=5, dense_out=64, scale=4):
         super().__init__()
+
+        self.scale = scale
 
         self.conv1 = nn.Conv2d(c_img, n_feat, kernel_size=3, padding=1, bias=True)
 
@@ -59,9 +61,13 @@ class NSRNet(nn.Module):
 
         self.conv2 = nn.Conv2d(n_feat, n_feat, kernel_size=3, padding=1, bias=True)
 
-        self.conv_up1 = nn.Conv2d(n_feat, n_feat*scale*scale, kernel_size=3, padding=1, bias=True)
-        self.conv_up2 = nn.Conv2d(n_feat, n_feat*scale*scale, kernel_size=3, padding=1, bias=True)
-        self.sub_pixel = nn.PixelShuffle(scale)
+        if scale == 4:
+            self.conv_up1 = nn.Conv2d(n_feat, n_feat*scale//2*scale//2, kernel_size=3, padding=1, bias=True)
+            self.conv_up2 = nn.Conv2d(n_feat, n_feat*scale//2*scale//2, kernel_size=3, padding=1, bias=True)
+            self.sub_pixel = nn.PixelShuffle(scale//2)
+        else:
+            self.conv_up1 = nn.Conv2d(n_feat, n_feat*scale*scale, kernel_size=3, padding=1, bias=True)
+            self.sub_pixel = nn.PixelShuffle(scale)
 
         self.conv_out = nn.Conv2d(n_feat, c_img, kernel_size=3, padding=1, bias=True)
 
@@ -87,12 +93,16 @@ class NSRNet(nn.Module):
         out_2 = self.conv2(rdb_out_4)
         out_2 = out_2 + out_1
 
-        up_out1 = self.conv_up1(out_2)
-        up_out1 = self.sub_pixel(up_out1)
-        up_out2 = self.conv_up2(up_out1)
-        up_out2 = self.sub_pixel(up_out2)
+        if self.scale == 4:
+            up_out1 = self.conv_up1(out_2)
+            up_out1 = self.sub_pixel(up_out1)
+            up_out2 = self.conv_up2(up_out1)
+            up_out = self.sub_pixel(up_out2)
+        else:
+            up_out1 = self.conv_up1(out_2)
+            up_out = self.sub_pixel(up_out1)
 
-        out = self.conv_out(up_out2)
+        out = self.conv_out(up_out)
 
         return out
 
