@@ -8,7 +8,7 @@ from torch.utils import data
 from torchvision import transforms
 from tqdm import tqdm
 
-from data import DatasetFromFolder, InfiniteSampler
+from data import DatasetFromFolder, SQLDataset, InfiniteSampler
 from model import NSRNet, Discriminator, NMDiscriminator
 
 
@@ -22,7 +22,7 @@ parser.add_argument('--l3', type=float, default=1e-3, help="lambda3")
 parser.add_argument('--scale', type=int, default=4, help="scale")
 parser.add_argument('--max_iter', type=int, default=1000000)
 parser.add_argument('--batch_size', type=int, default=32)
-parser.add_argument('--n_threads', type=int, default=16)
+parser.add_argument('--n_threads', type=int, default=32)
 parser.add_argument('--save_model_interval', type=int, default=10000)
 parser.add_argument('--vis_interval', type=int, default=1000)
 parser.add_argument('--log_interval', type=int, default=10)
@@ -40,7 +40,7 @@ if not os.path.exists(args.save_dir):
 
 writer = SummaryWriter()
 
-train_set = DatasetFromFolder(args.root, scale_factor=args.scale)
+train_set = SQLDataset(args.root)
 iterator_train = iter(data.DataLoader(
     train_set,
     batch_size=args.batch_size,
