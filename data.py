@@ -1,5 +1,7 @@
 from os import listdir
 from os.path import join
+import sqlite3
+import io
 
 import numpy as np
 from PIL import Image
@@ -31,6 +33,37 @@ class DatasetFromFolder(data.Dataset):
         input = self.resizer(input)
 
         return to_tensor(input), to_tensor(target)
+
+
+class SQLDataset(data.Dataset):
+    def __init__(self, db_file, db_table='images', hr_col='hr_img', lr_col='lr_img'):
+        self.db_file = db_file
+        self.db_table = db_table
+        self.lr_col = lr_col
+        self.hr_col = hr_col
+        self.total_images = self.get_num_rows()
+
+    def get_num_rows(self):
+        with sqlite3.connect(self.db_file) as conn:
+            cursor = conn.cursor()
+            cursor.execute(f'SELECT MAX(ROWID) FROM {self.db_table}')
+            db_rows = cursor.fetchone()[0]
+
+        return db_rows
+
+    def __len__(self):
+        return self.total_images
+
+    def __getitem__(self, item):
+        with sqlite3.connect(self.db_file) as conn:
+            cursor = conn.cursor()
+            cursor.execute(f'SELECT {self.lr_col}, {self.hr_col} FROM {self.db_table} WHERE ROWID={item+1}')
+            lr, hr = cursor.fetchone()
+
+        lr = Image.open(io.BytesIO(lr)).convert("RGB")
+        hr = Image.open(io.BytesIO(hr)).convert("RGB")
+
+        return to_tensor(lr), to_tensor(hr)
 
 
 class InfiniteSampler(data.sampler.Sampler):
