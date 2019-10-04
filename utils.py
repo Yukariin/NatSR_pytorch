@@ -87,8 +87,8 @@ def get_noisy(x, sigma):
 
 
 def get_blurry(x, scale, alpha):
-    lr = F.interpolate(x, scale=1/scale, mode='bicubic')
-    lr = F.interpolate(lr, scale=scale, mode='bicubic')
+    lr = F.interpolate(x, scale_factor=1/scale, mode='bicubic')
+    lr = F.interpolate(lr, scale_factor=scale, mode='bicubic')
     a = (1-alpha)*lr + alpha*x
 
     return a
