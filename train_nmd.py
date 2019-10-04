@@ -9,7 +9,7 @@ from torch.utils import data
 from torchvision import transforms
 from tqdm import tqdm
 
-from data import DatasetFromFolder, InfiniteSampler
+from data import DatasetFromFolder, SQLDataset, InfiniteSampler
 from model import NMDiscriminator
 from utils import *
 
@@ -25,7 +25,6 @@ parser.add_argument('--batch_size', type=int, default=32)
 parser.add_argument('--n_threads', type=int, default=16)
 parser.add_argument('--save_model_interval', type=int, default=10000)
 parser.add_argument('--log_interval', type=int, default=10)
-parser.add_argument('--image_size', type=int, default=512)
 parser.add_argument('--resume', type=int)
 args = parser.parse_args()
 
@@ -39,9 +38,7 @@ if not os.path.exists(args.save_dir):
 
 writer = SummaryWriter()
 
-size = (args.image_size, args.image_size)
-
-train_set = DatasetFromFolder(args.root)
+train_set = SQLDataset(args.root)
 iterator_train = iter(data.DataLoader(
     train_set,
     batch_size=args.batch_size,
@@ -50,7 +47,7 @@ iterator_train = iter(data.DataLoader(
 ))
 print(len(train_set))
 
-val_set = DatasetFromFolder(args.val)
+val_set = SQLDataset(args.val)
 iterator_val = iter(data.DataLoader(
     val_set,
     batch_size=200,
@@ -126,11 +123,8 @@ for i in tqdm(range(start_iter, args.max_iter)):
 
         if sigma_avg >= 95.:
             sigma = clamp(sigma*.8, .0044, .1)
-        if alpha_avg >= 93.:
+        if alpha_avg >= 95.:
             alpha = clamp(alpha+.1, .0, .9)
-
-        if (sigma_avg >= 95. and sigma == .0044) and (alpha_avg >= 93. and alpha = .9):
-            break
 
     if (i + 1) % args.save_model_interval == 0 or (i + 1) == args.max_iter:
         torch.save({
