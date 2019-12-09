@@ -35,7 +35,7 @@ if __name__ == "__main__":
 
     import time
     start_time = time.time()
-    out = [model(p.to(device)) for p in patches]
+    out = [model(p.to(device)).detach() for p in patches]
     print("Done in %.3f seconds!" % (time.time() - start_time))
 
     out_img = splitter.merge(out)
