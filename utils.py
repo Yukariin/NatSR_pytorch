@@ -97,7 +97,3 @@ def get_blurry(x, scale, alpha):
 def calc_acc(input, target):
     eq = torch.eq(torch.gt(input, 0.5).float(), target)
     return 100 * torch.mean(eq.float())
-
-
-def clamp(input, min_val, max_val):
-    return max(min(input, max_val), min_val)

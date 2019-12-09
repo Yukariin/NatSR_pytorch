@@ -22,7 +22,7 @@ parser.add_argument('--lr', type=float, default=1e-4, help="adam: learning rate"
 parser.add_argument('--scale', type=int, default=4, help="scale")
 parser.add_argument('--max_iter', type=int, default=20000)
 parser.add_argument('--batch_size', type=int, default=32)
-parser.add_argument('--n_threads', type=int, default=16)
+parser.add_argument('--n_threads', type=int, default=32)
 parser.add_argument('--save_model_interval', type=int, default=10000)
 parser.add_argument('--log_interval', type=int, default=10)
 parser.add_argument('--resume', type=int)
@@ -62,7 +62,8 @@ bce = nn.BCELoss().to(device)
 start_iter = 0
 nmd_optimizer = torch.optim.Adam(
     nmd_model.parameters(),
-    args.lr)
+    args.lr
+)
 
 if args.resume:
     nmd_checkpoint = torch.load(f'{args.save_dir}/ckpt/NMD_{args.resume}.pth', map_location=device)
@@ -76,42 +77,43 @@ else:
     sigma = 0.1
     alpha = 0.5
 
-val_sigma_stack = [0]*10
-val_alpha_stack = [0]*10
+val_sigma_stack = [0.]*10
+val_alpha_stack = [0.]*10
 for i in tqdm(range(start_iter, args.max_iter)):
     _, target = [x.to(device) for x in next(iterator_train)]
 
-    noisy = get_noisy(target[:args.batch_size//4], sigma)    
-    blurry = get_blurry(target[args.batch_size//4:args.batch_size//2], args.scale, alpha)
-    clean = target[args.batch_size//2:]
+    b = args.batch_size # fetch from target?
+    noisy = get_noisy(target[:b//4], sigma)
+    blurry = get_blurry(target[b//4:b//2], args.scale, alpha)
+    clean = target[b//2:]
     input_train = torch.cat([noisy, blurry, clean])
     result = nmd_model(input_train)
 
     labels = torch.cat([
-        torch.zeros((args.batch_size//2, 1, 1, 1)),
-        torch.ones((args.batch_size//2, 1, 1, 1))
-    ]).to(result)
+        torch.zeros((b//2, 1, 1, 1)),
+        torch.ones((b//2, 1, 1, 1))
+    ]).to(device)
     nmd_loss = torch.mean(bce(result, labels))
 
     nmd_optimizer.zero_grad()
     nmd_loss.backward()
     nmd_optimizer.step()
 
-    if (i + 1) % 100 == 0:
+    if (i+1) % 100 == 0:
         _, val_target = [x.to(device) for x in next(iterator_val)]
 
         val_noisy = get_noisy(val_target[:100], sigma)    
         val_blurry = get_blurry(val_target[:100], args.scale, alpha)
         val_clean = val_target[100:]
-        input_val_1 = torch.cat([val_noisy, val_clean])
-        input_val_2 = torch.cat([val_blurry, val_clean])
+        input_val_sigma = torch.cat([val_noisy, val_clean])
+        input_val_alpha = torch.cat([val_blurry, val_clean])
 
         val_labels = torch.cat([
             torch.zeros((100, 1, 1, 1)),
             torch.ones((100, 1, 1, 1))
-        ]).to(input_val_1)
-        sigma_acc = calc_acc(nmd_model(input_val_1), val_labels)
-        alpha_acc = calc_acc(nmd_model(input_val_2), val_labels)
+        ]).to(device)
+        sigma_acc = calc_acc(nmd_model(input_val_sigma), val_labels)
+        alpha_acc = calc_acc(nmd_model(input_val_alpha), val_labels)
         train_acc = calc_acc(result, labels)
 
         val_sigma_stack.append(sigma_acc.item())
@@ -122,24 +124,27 @@ for i in tqdm(range(start_iter, args.max_iter)):
         alpha_avg = np.mean(val_alpha_stack)
 
         if sigma_avg >= 95.:
-            sigma = clamp(sigma*.8, .0044, .1)
+            sigma = np.clip(sigma*.8, .0044, .1)
         if alpha_avg >= 95.:
-            alpha = clamp(alpha+.1, .0, .9)
+            alpha = np.clip(alpha+.1, .0, .9)
 
-    if (i + 1) % args.save_model_interval == 0 or (i + 1) == args.max_iter:
+    if (i+1) % args.save_model_interval == 0 or (i+1) == args.max_iter:
         torch.save({
             'model_state_dict': nmd_model.state_dict(),
             'sigma': sigma,
             'alpha': alpha,
-            }, f'{args.save_dir}/ckpt/NMD_{i + 1}.pth')
+            }, f'{args.save_dir}/ckpt/NMD_{i+1}.pth')
 
-    if (i + 1) % args.log_interval == 0:
-        writer.add_scalar('total_loss', nmd_loss.item(), i + 1)
-        writer.add_scalar('train_acc', train_acc.item(), i + 1)
-        writer.add_scalar('sigma', sigma, i + 1)
-        writer.add_scalar('alpha', alpha, i + 1)
+    if (i+1) % args.log_interval == 0:
+        writer.add_scalar('total_loss', nmd_loss.item(), i+1)
+        writer.add_scalar('train_acc', train_acc.item(), i+1)
+        writer.add_scalar('sigma', sigma, i+1)
+        writer.add_scalar('alpha', alpha, i+1)
 
-        writer.add_scalar('val_sigma_acc', sigma_acc, i + 1)
-        writer.add_scalar('val_alpha_acc', alpha_acc, i + 1)
+        writer.add_scalar('sigma_avg', sigma_avg, i+1)
+        writer.add_scalar('alpha_avg', alpha_avg, i+1)
+
+        writer.add_scalar('val_sigma_acc', sigma_acc, i+1)
+        writer.add_scalar('val_alpha_acc', alpha_acc, i+1)
 
 writer.close()

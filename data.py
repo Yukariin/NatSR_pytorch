@@ -7,7 +7,7 @@ import numpy as np
 from PIL import Image
 import torch.utils.data as data
 from torchvision.transforms import RandomCrop, Resize
-from torchvision.transforms.functional import to_tensor
+from torchvision.transforms import functional as TF
 
 
 def is_image_file(filename):
@@ -35,8 +35,29 @@ class DatasetFromFolder(data.Dataset):
         return to_tensor(input), to_tensor(target)
 
 
+class DatasetFromList(data.Dataset):
+    def __init__(self, list_path, patch_size=48, scale_factor=4, interpolation=Image.BICUBIC):
+        super().__init__()
+
+        self.samples = [x.rstrip('\n') for x in open(list_path) if is_image_file(x.rstrip('\n'))]
+        self.cropper = RandomCrop(size=patch_size*scale_factor)
+        self.resizer = Resize(patch_size, interpolation)
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, index):
+        sample_path = self.samples[index]
+        img = Image.open(sample_path).convert('RGB')
+        target = self.cropper(img)
+        input = target.copy()
+        input = self.resizer(input)
+
+        return to_tensor(input), to_tensor(target)
+
+
 class SQLDataset(data.Dataset):
-    def __init__(self, db_file, db_table='images', hr_col='hr_img', lr_col='lr_img'):
+    def __init__(self, db_file, db_table='images', lr_col='lr_img', hr_col='hr_img'):
         self.db_file = db_file
         self.db_table = db_table
         self.lr_col = lr_col
@@ -63,7 +84,7 @@ class SQLDataset(data.Dataset):
         lr = Image.open(io.BytesIO(lr)).convert("RGB")
         hr = Image.open(io.BytesIO(hr)).convert("RGB")
 
-        return to_tensor(lr), to_tensor(hr)
+        return TF.to_tensor(lr), TF.to_tensor(hr)
 
 
 class InfiniteSampler(data.sampler.Sampler):
