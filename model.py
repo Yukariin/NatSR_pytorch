@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-import torch.nn.functional as F
 import torch.nn.utils.spectral_norm as SN
 
 
@@ -9,7 +8,7 @@ class DenseBlock(nn.Module):
         super().__init__()
 
         self.conv = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=(kernel_size-1)//2, bias=False),
+            nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=(kernel_size-1)//2),
             nn.ReLU(inplace=True)
         )
 
@@ -30,7 +29,7 @@ class RDBlock(nn.Module):
             out_channels += dense_out
         self.dense = nn.Sequential(*layers)
 
-        self.conv_fusion = nn.Conv2d(out_channels, in_channels, kernel_size=1, padding=0, bias=False)
+        self.conv_fusion = nn.Conv2d(out_channels, in_channels, kernel_size=1, padding=0)
     
     def forward(self, x):
         out = self.dense(x)
@@ -43,9 +42,7 @@ class NSRNet(nn.Module):
     def __init__(self, c_img=3, n_feat=64, num_dense=5, dense_out=64, scale=4):
         super().__init__()
 
-        self.scale = scale
-
-        self.conv1 = nn.Conv2d(c_img, n_feat, kernel_size=3, padding=1, bias=True)
+        self.conv1 = nn.Conv2d(c_img, n_feat, kernel_size=3, padding=1)
 
         self.block1 = RDBlock(n_feat, num_dense, dense_out)
         self.block2 = RDBlock(n_feat, num_dense, dense_out)
@@ -59,17 +56,22 @@ class NSRNet(nn.Module):
         self.block7 = RDBlock(n_feat, num_dense, dense_out)
         self.block8 = RDBlock(n_feat, num_dense, dense_out)
 
-        self.conv2 = nn.Conv2d(n_feat, n_feat, kernel_size=3, padding=1, bias=True)
+        self.conv2 = nn.Conv2d(n_feat, n_feat, kernel_size=3, padding=1)
 
         if scale == 4:
-            self.conv_up1 = nn.Conv2d(n_feat, n_feat*scale//2*scale//2, kernel_size=3, padding=1, bias=True)
-            self.conv_up2 = nn.Conv2d(n_feat, n_feat*scale//2*scale//2, kernel_size=3, padding=1, bias=True)
-            self.sub_pixel = nn.PixelShuffle(scale//2)
+            self.conv_up = nn.Sequential(
+                nn.Conv2d(n_feat, n_feat*scale//2*scale//2, kernel_size=3, padding=1),
+                nn.PixelShuffle(scale//2),
+                nn.Conv2d(n_feat, n_feat*scale//2*scale//2, kernel_size=3, padding=1),
+                nn.PixelShuffle(scale//2)
+            )
         else:
-            self.conv_up1 = nn.Conv2d(n_feat, n_feat*scale*scale, kernel_size=3, padding=1, bias=True)
-            self.sub_pixel = nn.PixelShuffle(scale)
+            self.conv_up = nn.Sequential(
+                nn.Conv2d(n_feat, n_feat*scale*scale, kernel_size=3, padding=1),
+                nn.PixelShuffle(scale)
+            )
 
-        self.conv_out = nn.Conv2d(n_feat, c_img, kernel_size=3, padding=1, bias=True)
+        self.conv_out = nn.Conv2d(n_feat, c_img, kernel_size=3, padding=1)
 
     def forward(self, x):
         out_1 = self.conv1(x)
@@ -93,14 +95,7 @@ class NSRNet(nn.Module):
         out_2 = self.conv2(rdb_out_4)
         out_2 = out_2 + out_1
 
-        if self.scale == 4:
-            up_out1 = self.conv_up1(out_2)
-            up_out1 = self.sub_pixel(up_out1)
-            up_out2 = self.conv_up2(up_out1)
-            up_out = self.sub_pixel(up_out2)
-        else:
-            up_out1 = self.conv_up1(out_2)
-            up_out = self.sub_pixel(up_out1)
+        up_out = self.conv_up(out_2)
 
         out = self.conv_out(up_out)
 
@@ -113,32 +108,32 @@ class Discriminator(nn.Module):
         
         cnum = 64
         self.discriminator = nn.Sequential(
-            SN(nn.Conv2d(c_img, cnum, 3, 1, 1)),
+            SN(nn.Conv2d(c_img, cnum, kernel_size=3, padding=1)),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            SN(nn.Conv2d(cnum, cnum, 3, 2, 1)),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-
-            SN(nn.Conv2d(cnum, cnum*2, 3, 1, 1)),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            SN(nn.Conv2d(cnum*2, cnum*2, 3, 2, 1)),
+            SN(nn.Conv2d(cnum, cnum, kernel_size=3, stride=2, padding=1)),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
-            SN(nn.Conv2d(cnum*2, cnum*4, 3, 1, 1)),
+            SN(nn.Conv2d(cnum, cnum*2, kernel_size=3, padding=1)),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            SN(nn.Conv2d(cnum*4, cnum*4, 3, 2, 1)),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-
-            SN(nn.Conv2d(cnum*4, cnum*8, 3, 1, 1)),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            SN(nn.Conv2d(cnum*8, cnum*8, 3, 2, 1)),
+            SN(nn.Conv2d(cnum*2, cnum*2, kernel_size=3, stride=2, padding=1)),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
-            SN(nn.Conv2d(cnum*8, cnum*16, 3, 1, 1)),
+            SN(nn.Conv2d(cnum*2, cnum*4, kernel_size=3, padding=1)),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            SN(nn.Conv2d(cnum*16, cnum*16, 3, 2, 1)),
+            SN(nn.Conv2d(cnum*4, cnum*4, kernel_size=3, stride=2, padding=1)),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
-            SN(nn.Conv2d(cnum*16, 1, 3, 1, 1)),
+            SN(nn.Conv2d(cnum*4, cnum*8, kernel_size=3, padding=1)),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            SN(nn.Conv2d(cnum*8, cnum*8, kernel_size=3, stride=2, padding=1)),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+
+            SN(nn.Conv2d(cnum*8, cnum*16, kernel_size=3, padding=1)),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            SN(nn.Conv2d(cnum*16, cnum*16, kernel_size=3, stride=2, padding=1)),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+
+            SN(nn.Conv2d(cnum*16, 1, kernel_size=3, padding=1)),
             nn.AdaptiveAvgPool2d(1)
         )
 
@@ -164,20 +159,20 @@ class NMDiscriminator(nn.Module):
             nn.Conv2d(cnum*2, cnum*2, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2, stride=2),
-            
+
             nn.Conv2d(cnum*2, cnum*4, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             nn.Conv2d(cnum*4, cnum*4, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2, stride=2),
-            
+
             nn.Conv2d(cnum*4, cnum*8, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             nn.Conv2d(cnum*8, cnum*8, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2, stride=2),
-            
-            nn.Conv2d(cnum*8, 1, 3, 1, 1),
+
+            nn.Conv2d(cnum*8, 1, kernel_size=3, padding=1),
             nn.AdaptiveAvgPool2d(1),
             nn.Sigmoid()
         )
