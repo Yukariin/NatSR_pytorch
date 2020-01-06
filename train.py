@@ -36,7 +36,7 @@ if use_cuda:
     torch.backends.cudnn.benchmark = True
 
 if not os.path.exists(args.save_dir):
-    os.makedirs('{:s}/ckpt'.format(args.save_dir))
+    os.makedirs(f'{args.save_dir}/ckpt')
 
 writer = SummaryWriter()
 
@@ -69,18 +69,20 @@ if args.resume:
     d_checkpoint = torch.load(f'{args.save_dir}/ckpt/D_{args.resume}.pth', map_location=device)
     d_model.load_state_dict(d_checkpoint)
 
-    nmd_checkpoint = torch.load(args.nmd, map_location=device)
-    nmd_model.load_state_dict(nmd_checkpoint['model_state_dict'])
-
     print('Model restored!')
     start_iter = args.resume
 
+nmd_checkpoint = torch.load(args.nmd, map_location=device)
+nmd_model.load_state_dict(nmd_checkpoint['model_state_dict'])
 nmd_model.eval()
+
 for i in tqdm(range(start_iter, args.max_iter)):
     input, target = [x.to(device) for x in next(iterator_train)]
 
     result = g_model(input)
 
+
+    #  Train G
     recon_loss = l1(result, target)
 
     n_pred = nmd_model(result)
@@ -92,13 +94,20 @@ for i in tqdm(range(start_iter, args.max_iter)):
     y = torch.ones_like(y_pred)
     y2 = torch.zeros_like(y_pred)
     g_loss = (bce_s(y_pred - torch.mean(y_pred_fake), y2) + bce_s(y_pred_fake - torch.mean(y_pred), y))/2
-    d_loss = (bce_s(y_pred - torch.mean(y_pred_fake), y) + bce_s(y_pred_fake - torch.mean(y_pred), y2))/2
 
     total_loss = args.l1*recon_loss + args.l2*nat_loss + args.l3*g_loss
 
     g_optimizer.zero_grad()
-    total_loss.backward(retain_graph=True)
+    total_loss.backward()
     g_optimizer.step()
+
+
+    #  Train D
+    y_pred_fake = d_model(result.detach())
+    y_pred = d_model(target)
+    y = torch.ones_like(y_pred)
+    y2 = torch.zeros_like(y_pred)
+    d_loss = (bce_s(y_pred - torch.mean(y_pred_fake), y) + bce_s(y_pred_fake - torch.mean(y_pred), y2))/2
 
     d_optimizer.zero_grad()
     d_loss.backward()
