@@ -11,3 +11,11 @@ month = {June},
 year = {2019}
 }
 ```
+
+## Acknowledgments
+[ImageSplitter](https://github.com/Yukariin/NatSR_pytorch/blob/master/utils.py#L12) and [SQLite-based](https://github.com/Yukariin/NatSR_pytorch/blob/master/data.py#L59) dataset are based on [yu45020](https://github.com/yu45020)'s waifu2x [re-implementation](https://github.com/yu45020/Waifu2x).
+
+[SQLite-based](https://github.com/Yukariin/NatSR_pytorch/blob/master/gen_data.py) data generator based on reference NatSR [implementation](https://github.com/JWSoh/NatSR).
+
+
+[NMD](https://github.com/Yukariin/NatSR_pytorch/blob/master/train_nmd.py) training codes heavily based on reference NatSR [implementation](https://github.com/JWSoh/NatSR).
