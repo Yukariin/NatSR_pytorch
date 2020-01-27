@@ -27,6 +27,7 @@ if __name__ == "__main__":
     checkpoint = torch.load(args.checkpoint, map_location=device)
     model.load_state_dict(checkpoint)
     model.eval()
+    print('Model loaded')
 
     splitter = ImageSplitter(scale=args.scale)
 
@@ -35,8 +36,9 @@ if __name__ == "__main__":
 
     import time
     start_time = time.time()
-    out = [model(p.to(device)).detach() for p in patches]
+    with torch.no_grad():
+        out = [model(p.to(device)) for p in patches]
     print("Done in %.3f seconds!" % (time.time() - start_time))
 
     out_img = splitter.merge(out)
-    save_image(out_img, args.output)
+    out_img.save(args.output)

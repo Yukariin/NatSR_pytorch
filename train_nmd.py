@@ -22,7 +22,7 @@ parser.add_argument('--lr', type=float, default=1e-4, help="adam: learning rate"
 parser.add_argument('--scale', type=int, default=4, help="scale")
 parser.add_argument('--max_iter', type=int, default=20000)
 parser.add_argument('--batch_size', type=int, default=32)
-parser.add_argument('--n_threads', type=int, default=32)
+parser.add_argument('--n_threads', type=int, default=8)
 parser.add_argument('--save_model_interval', type=int, default=10000)
 parser.add_argument('--log_interval', type=int, default=10)
 parser.add_argument('--resume', type=int)
@@ -112,9 +112,10 @@ for i in tqdm(range(start_iter, args.max_iter)):
             torch.zeros((100, 1, 1, 1)),
             torch.ones((100, 1, 1, 1))
         ]).to(device)
-        sigma_acc = calc_acc(nmd_model(input_val_sigma), val_labels)
-        alpha_acc = calc_acc(nmd_model(input_val_alpha), val_labels)
-        train_acc = calc_acc(result, labels)
+        with torch.no_grad():
+            sigma_acc = calc_acc(nmd_model(input_val_sigma), val_labels)
+            alpha_acc = calc_acc(nmd_model(input_val_alpha), val_labels)
+            train_acc = calc_acc(result, labels)
 
         val_sigma_stack.append(sigma_acc.item())
         val_alpha_stack.append(alpha_acc.item())
@@ -126,7 +127,7 @@ for i in tqdm(range(start_iter, args.max_iter)):
         if sigma_avg >= 95.:
             sigma = np.clip(sigma*.8, .0044, .1)
         if alpha_avg >= 95.:
-            alpha = np.clip(alpha+.1, .0, .9)
+            alpha = np.clip(alpha+.1, .5, .9)
 
     if (i+1) % args.save_model_interval == 0 or (i+1) == args.max_iter:
         torch.save({
@@ -136,7 +137,7 @@ for i in tqdm(range(start_iter, args.max_iter)):
             }, f'{args.save_dir}/ckpt/NMD_{i+1}.pth')
 
     if (i+1) % args.log_interval == 0:
-        writer.add_scalar('total_loss', nmd_loss.item(), i+1)
+        writer.add_scalar('nmd_loss', nmd_loss.item(), i+1)
         writer.add_scalar('train_acc', train_acc.item(), i+1)
         writer.add_scalar('sigma', sigma, i+1)
         writer.add_scalar('alpha', alpha, i+1)

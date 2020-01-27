@@ -6,7 +6,7 @@ from scipy.fftpack import dct, idct
 import torch
 from torch import nn
 import torch.nn.functional as F
-from torchvision.transforms.functional import to_tensor
+import torchvision.transforms.functional as TF
 
 
 class ImageSplitter:
@@ -19,16 +19,16 @@ class ImageSplitter:
         self.ref_pad = nn.ReplicationPad2d(self.pad_size)
 
     def split(self, pil_img):
-        img_tensor = to_tensor(pil_img).unsqueeze(0)
+        img_tensor = TF.to_tensor(pil_img).unsqueeze_(0)
         img_tensor = self.ref_pad(img_tensor)
-        b, c, h, w = img_tensor.size()
+        _, _, h, w = img_tensor.size()
         self.height = h
         self.width = w
 
-        patches = []
         if h % self.seg_size < self.pad_size or w % self.seg_size < self.pad_size:
             self.seg_size += self.scale * self.pad_size
 
+        patches = []
         for i in range(self.pad_size, h, self.seg_size):
             for j in range(self.pad_size, w, self.seg_size):
                 patch = img_tensor[:, :,
@@ -57,17 +57,17 @@ class ImageSplitter:
                 out[:, :, i:i+h, j:j+w] = patch
         out = out[:, :, pad_size:-pad_size, pad_size:-pad_size]
 
-        return out
+        return TF.to_pil_image(out.clamp_(0,1).squeeze_(0))
 
 
 def inject_dct(x, sigma):
-    n, c, h, w = x.shape
-    X_space = np.reshape(x, [n, c, h//8, 8, w//8, 8])
+    b, c, h, w = x.shape
+    X_space = np.reshape(x, [b, c, h//8, 8, w//8, 8])
     X_dct_x = dct(X_space, axis=3, norm='ortho')
     X_dct = dct(X_dct_x, axis=5, norm='ortho')
 
-    noise_raw = npr.randn(n, c, h//8, 8, w//8, 8) * sigma
-    z = np.zeros([n, c, h//8, 8, w//8, 8])
+    noise_raw = npr.randn(b, c, h//8, 8, w//8, 8) * sigma
+    z = np.zeros([b, c, h//8, 8, w//8, 8])
     z[:, :, :, 7, :, :] = noise_raw[:, :, :, 7, :, :]
     z[:, :, :, :, :, 7] = noise_raw[:, :, :, :, :, 7]
 
