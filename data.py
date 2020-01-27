@@ -57,11 +57,12 @@ class DatasetFromList(data.Dataset):
 
 
 class SQLDataset(data.Dataset):
-    def __init__(self, db_file, db_table='images', lr_col='lr_img', hr_col='hr_img'):
+    def __init__(self, db_file, db_table='images', lr_col='lr_img', hr_col='hr_img', transform=True):
         self.db_file = db_file
         self.db_table = db_table
         self.lr_col = lr_col
         self.hr_col = hr_col
+        self.transform = transform
         self.total_images = self.get_num_rows()
 
     def get_num_rows(self):
@@ -81,8 +82,16 @@ class SQLDataset(data.Dataset):
             cursor.execute(f'SELECT {self.lr_col}, {self.hr_col} FROM {self.db_table} WHERE ROWID={item+1}')
             lr, hr = cursor.fetchone()
 
-        lr = Image.open(io.BytesIO(lr)).convert("RGB")
-        hr = Image.open(io.BytesIO(hr)).convert("RGB")
+        lr = Image.open(io.BytesIO(lr)).convert('RGB')
+        hr = Image.open(io.BytesIO(hr)).convert('RGB')
+
+        if self.transform:
+            if np.random.rand() < 0.5:
+                lr = TF.hflip(lr)
+                hr = TF.hflip(hr)
+            if np.random.rand() < 0.5:
+                lr = TF.rotate(lr, 90)
+                hr = TF.rotate(hr, 90)
 
         return TF.to_tensor(lr), TF.to_tensor(hr)
 
