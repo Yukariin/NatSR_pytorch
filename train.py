@@ -6,10 +6,11 @@ import torch
 import torch.nn as nn
 from torch.utils import data
 from torchvision import transforms
+from torchvision.utils import make_grid
 from tqdm import tqdm
 
 from data import DatasetFromFolder, SQLDataset, InfiniteSampler
-from model import NSRNet, Discriminator, NMDiscriminator
+from model import *
 
 
 parser = argparse.ArgumentParser()
@@ -22,7 +23,7 @@ parser.add_argument('--l3', type=float, default=1e-3, help="lambda3")
 parser.add_argument('--scale', type=int, default=4, help="scale")
 parser.add_argument('--max_iter', type=int, default=1000000)
 parser.add_argument('--batch_size', type=int, default=32)
-parser.add_argument('--n_threads', type=int, default=32)
+parser.add_argument('--n_threads', type=int, default=8)
 parser.add_argument('--save_model_interval', type=int, default=10000)
 parser.add_argument('--vis_interval', type=int, default=1000)
 parser.add_argument('--log_interval', type=int, default=10)
@@ -69,7 +70,7 @@ if args.resume:
     d_checkpoint = torch.load(f'{args.save_dir}/ckpt/D_{args.resume}.pth', map_location=device)
     d_model.load_state_dict(d_checkpoint)
 
-    print('Model restored!')
+    print('Model loaded!')
     start_iter = args.resume
 
 nmd_checkpoint = torch.load(args.nmd, map_location=device)
@@ -80,6 +81,18 @@ for i in tqdm(range(start_iter, args.max_iter)):
     input, target = [x.to(device) for x in next(iterator_train)]
 
     result = g_model(input)
+
+
+    #  Train D
+    y_pred_fake = d_model(result.detach())
+    y_pred = d_model(target)
+    y = torch.ones_like(y_pred)
+    y2 = torch.zeros_like(y_pred)
+    d_loss = bce_s(y_pred - torch.mean(y_pred_fake), y) + bce_s(y_pred_fake - torch.mean(y_pred), y2)
+
+    d_optimizer.zero_grad()
+    d_loss.backward()
+    d_optimizer.step()
 
 
     #  Train G
@@ -93,7 +106,7 @@ for i in tqdm(range(start_iter, args.max_iter)):
     y_pred = d_model(target)
     y = torch.ones_like(y_pred)
     y2 = torch.zeros_like(y_pred)
-    g_loss = (bce_s(y_pred - torch.mean(y_pred_fake), y2) + bce_s(y_pred_fake - torch.mean(y_pred), y))/2
+    g_loss = bce_s(y_pred - torch.mean(y_pred_fake), y2) + bce_s(y_pred_fake - torch.mean(y_pred), y)
 
     total_loss = args.l1*recon_loss + args.l2*nat_loss + args.l3*g_loss
 
@@ -102,31 +115,22 @@ for i in tqdm(range(start_iter, args.max_iter)):
     g_optimizer.step()
 
 
-    #  Train D
-    y_pred_fake = d_model(result.detach())
-    y_pred = d_model(target)
-    y = torch.ones_like(y_pred)
-    y2 = torch.zeros_like(y_pred)
-    d_loss = (bce_s(y_pred - torch.mean(y_pred_fake), y) + bce_s(y_pred_fake - torch.mean(y_pred), y2))/2
+    if (i+1) % args.save_model_interval == 0 or (i+1) == args.max_iter:
+        torch.save(g_model.state_dict(), f'{args.save_dir}/ckpt/G_{i+1}.pth')
+        torch.save(d_model.state_dict(), f'{args.save_dir}/ckpt/D_{i+1}.pth')
 
-    d_optimizer.zero_grad()
-    d_loss.backward()
-    d_optimizer.step()
+    if (i+1) % args.log_interval == 0:
+        writer.add_scalar('recon_loss', recon_loss.item(), i+1)
+        writer.add_scalar('total_loss', total_loss.item(), i+1)
+        writer.add_scalar('nat_loss', nat_loss.item(), i+1)
+        writer.add_scalar('nat_score', nat_score.item(), i+1)
+        writer.add_scalar('g_loss', g_loss.item(), i+1)
+        writer.add_scalar('d_loss', d_loss.item(), i+1)
 
-    if (i + 1) % args.save_model_interval == 0 or (i + 1) == args.max_iter:
-        torch.save(g_model.state_dict(), f'{args.save_dir}/ckpt/G_{i + 1}.pth')
-        torch.save(d_model.state_dict(), f'{args.save_dir}/ckpt/D_{i + 1}.pth')
-
-    if (i + 1) % args.log_interval == 0:
-        writer.add_scalar('recon_loss', recon_loss.item(), i + 1)
-        writer.add_scalar('total_loss', total_loss.item(), i + 1)
-        writer.add_scalar('nat_loss', nat_loss.item(), i + 1)
-        writer.add_scalar('nat_score', nat_score.item(), i + 1)
-        writer.add_scalar('g_loss', g_loss.item(), i + 1)
-        writer.add_scalar('d_loss', d_loss.item(), i + 1)
-
-    if (i + 1) % args.vis_interval == 0:
+    if (i+1) % args.vis_interval == 0:
         ims = torch.cat([target, result], dim=3)
-        writer.add_images('target_result', ims[:4], i + 1)
+        grid = make_grid(ims[:4], 2).clamp_(0,1)
+        writer.add_image('target_result', grid, i+1)
+        writer.flush()
 
 writer.close()
