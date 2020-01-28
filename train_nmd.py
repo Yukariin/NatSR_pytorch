@@ -9,7 +9,7 @@ from torch.utils import data
 from torchvision import transforms
 from tqdm import tqdm
 
-from data import DatasetFromFolder, SQLDataset, InfiniteSampler
+from data import *
 from model import NMDiscriminator
 from utils import *
 
@@ -26,6 +26,7 @@ parser.add_argument('--n_threads', type=int, default=8)
 parser.add_argument('--save_model_interval', type=int, default=10000)
 parser.add_argument('--log_interval', type=int, default=10)
 parser.add_argument('--resume', type=int)
+parser.add_argument('--transfer', action='store_true')
 args = parser.parse_args()
 
 use_cuda = torch.cuda.is_available()
@@ -65,17 +66,17 @@ nmd_optimizer = torch.optim.Adam(
     args.lr
 )
 
+sigma = 0.1
+alpha = 0.5
 if args.resume:
     nmd_checkpoint = torch.load(f'{args.save_dir}/ckpt/NMD_{args.resume}.pth', map_location=device)
     nmd_model.load_state_dict(nmd_checkpoint['model_state_dict'])
     print('Model restored!')
     start_iter = args.resume
 
-    sigma = nmd_checkpoint['sigma']
-    alpha = nmd_checkpoint['alpha']
-else:
-    sigma = 0.1
-    alpha = 0.5
+    if not args.transfer:
+        sigma = nmd_checkpoint['sigma']
+        alpha = nmd_checkpoint['alpha']
 
 val_sigma_stack = [0.]*10
 val_alpha_stack = [0.]*10
