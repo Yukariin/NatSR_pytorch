@@ -9,7 +9,7 @@ from torchvision import transforms
 from torchvision.utils import make_grid
 from tqdm import tqdm
 
-from data import DatasetFromFolder, SQLDataset, InfiniteSampler
+from data import SQLDataset, InfiniteSampler
 from model import *
 
 

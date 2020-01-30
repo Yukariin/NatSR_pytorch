@@ -9,7 +9,7 @@ from torchvision import transforms
 from torchvision.utils import make_grid
 from tqdm import tqdm
 
-from data import DatasetFromFolder, SQLDataset, InfiniteSampler
+from data import SQLDataset, InfiniteSampler
 from model import *
 
 
@@ -88,7 +88,7 @@ for i in tqdm(range(start_iter, args.max_iter)):
     y_pred = d_model(target)
     y = torch.ones_like(y_pred)
     y2 = torch.zeros_like(y_pred)
-    d_loss = bce_s(y_pred - torch.mean(y_pred_fake), y) + bce_s(y_pred_fake - torch.mean(y_pred), y2)
+    d_loss = (bce_s(y_pred - torch.mean(y_pred_fake), y) + bce_s(y_pred_fake - torch.mean(y_pred), y2))/2
 
     d_optimizer.zero_grad()
     d_loss.backward()
@@ -106,7 +106,7 @@ for i in tqdm(range(start_iter, args.max_iter)):
     y_pred = d_model(target)
     y = torch.ones_like(y_pred)
     y2 = torch.zeros_like(y_pred)
-    g_loss = bce_s(y_pred - torch.mean(y_pred_fake), y2) + bce_s(y_pred_fake - torch.mean(y_pred), y)
+    g_loss = (bce_s(y_pred - torch.mean(y_pred_fake), y2) + bce_s(y_pred_fake - torch.mean(y_pred), y))/2
 
     total_loss = args.l1*recon_loss + args.l2*nat_loss + args.l3*g_loss
 
