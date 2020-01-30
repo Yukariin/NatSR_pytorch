@@ -4,7 +4,7 @@ import numpy as np
 import numpy.random as npr
 from scipy.fftpack import dct, idct
 import torch
-from torch import nn
+import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms.functional as TF
 
@@ -92,8 +92,3 @@ def get_blurry(x, scale, alpha):
     a = (1-alpha)*lr + alpha*x
 
     return a
-
-
-def calc_acc(input, target):
-    eq = torch.eq(torch.gt(input, 0.5).float(), target)
-    return 100 * torch.mean(eq.float())

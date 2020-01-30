@@ -9,9 +9,9 @@ from torch.utils import data
 from torchvision import transforms
 from tqdm import tqdm
 
-from data import *
+from data import SQLDataset, InfiniteSampler
 from model import NMDiscriminator
-from utils import *
+from loss import calc_acc
 
 
 parser = argparse.ArgumentParser()
