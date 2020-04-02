@@ -12,6 +12,7 @@ from tqdm import tqdm
 from data import SQLDataset, InfiniteSampler
 from model import NMDiscriminator
 from loss import calc_acc
+from utils import get_blurry, get_noisy
 
 
 parser = argparse.ArgumentParser()
@@ -94,7 +95,7 @@ for i in tqdm(range(start_iter, args.max_iter)):
         torch.zeros((b//2, 1, 1, 1)),
         torch.ones((b//2, 1, 1, 1))
     ]).to(device)
-    nmd_loss = torch.mean(bce(result, labels))
+    nmd_loss = bce(result, labels)
 
     nmd_optimizer.zero_grad()
     nmd_loss.backward()

@@ -19,7 +19,7 @@ parser.add_argument('--save_dir', type=str, default='./snapshots')
 parser.add_argument('--lr', type=float, default=2e-4, help="adam: learning rate")
 parser.add_argument('--l1', type=float, default=1., help="lambda1")
 parser.add_argument('--l2', type=float, default=1e-3, help="lambda2")
-parser.add_argument('--l3', type=float, default=1e-3, help="lambda3")
+parser.add_argument('--l3', type=float, default=2e-3, help="lambda3")
 parser.add_argument('--scale', type=int, default=4, help="scale")
 parser.add_argument('--max_iter', type=int, default=1000000)
 parser.add_argument('--batch_size', type=int, default=32)
@@ -28,6 +28,7 @@ parser.add_argument('--save_model_interval', type=int, default=10000)
 parser.add_argument('--vis_interval', type=int, default=1000)
 parser.add_argument('--log_interval', type=int, default=10)
 parser.add_argument('--resume', type=int)
+parser.add_argument('--transfer', action='store_true')
 parser.add_argument('--nmd', type=str)
 args = parser.parse_args()
 
@@ -67,15 +68,15 @@ d_optimizer = torch.optim.Adam(
 if args.resume:
     g_checkpoint = torch.load(f'{args.save_dir}/ckpt/G_{args.resume}.pth', map_location=device)
     g_model.load_state_dict(g_checkpoint)
-    d_checkpoint = torch.load(f'{args.save_dir}/ckpt/D_{args.resume}.pth', map_location=device)
-    d_model.load_state_dict(d_checkpoint)
+    if not args.transfer:
+        d_checkpoint = torch.load(f'{args.save_dir}/ckpt/D_{args.resume}.pth', map_location=device)
+        d_model.load_state_dict(d_checkpoint)
 
     print('Model loaded!')
     start_iter = args.resume
 
 nmd_checkpoint = torch.load(args.nmd, map_location=device)
 nmd_model.load_state_dict(nmd_checkpoint['model_state_dict'])
-nmd_model.eval()
 
 for i in tqdm(range(start_iter, args.max_iter)):
     input, target = [x.to(device) for x in next(iterator_train)]
@@ -84,8 +85,8 @@ for i in tqdm(range(start_iter, args.max_iter)):
 
 
     #  Train D
-    y_pred_fake = d_model(result.detach())
     y_pred = d_model(target)
+    y_pred_fake = d_model(result.detach())
     y = torch.ones_like(y_pred)
     y2 = torch.zeros_like(y_pred)
     d_loss = (bce_s(y_pred - torch.mean(y_pred_fake), y) + bce_s(y_pred_fake - torch.mean(y_pred), y2))/2
@@ -102,8 +103,8 @@ for i in tqdm(range(start_iter, args.max_iter)):
     nat_loss = torch.mean(-torch.log(n_pred+1e-10))
     nat_score = torch.mean(n_pred)
 
-    y_pred_fake = d_model(result)
     y_pred = d_model(target)
+    y_pred_fake = d_model(result)
     y = torch.ones_like(y_pred)
     y2 = torch.zeros_like(y_pred)
     g_loss = (bce_s(y_pred - torch.mean(y_pred_fake), y2) + bce_s(y_pred_fake - torch.mean(y_pred), y))/2
