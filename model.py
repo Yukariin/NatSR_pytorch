@@ -34,8 +34,7 @@ class RDBlock(nn.Module):
     def forward(self, x):
         out = self.dense(x)
         out = self.conv_fusion(out)
-        out = out + x
-        return out
+        return x + (0.1*out)
 
 
 class NSRNet(nn.Module):
@@ -103,37 +102,36 @@ class NSRNet(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, c_img=3):
+    def __init__(self, c_img=3, n_feat=64):
         super().__init__()
-        
-        cnum = 64
+
         self.discriminator = nn.Sequential(
-            SN(nn.Conv2d(c_img, cnum, kernel_size=3, padding=1)),
+            SN(nn.Conv2d(c_img, n_feat, kernel_size=3, padding=1)),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            SN(nn.Conv2d(cnum, cnum, kernel_size=3, stride=2, padding=1)),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-
-            SN(nn.Conv2d(cnum, cnum*2, kernel_size=3, padding=1)),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            SN(nn.Conv2d(cnum*2, cnum*2, kernel_size=3, stride=2, padding=1)),
+            SN(nn.Conv2d(n_feat, n_feat, kernel_size=3, stride=2, padding=1)),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
-            SN(nn.Conv2d(cnum*2, cnum*4, kernel_size=3, padding=1)),
+            SN(nn.Conv2d(n_feat, n_feat*2, kernel_size=3, padding=1)),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            SN(nn.Conv2d(cnum*4, cnum*4, kernel_size=3, stride=2, padding=1)),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-
-            SN(nn.Conv2d(cnum*4, cnum*8, kernel_size=3, padding=1)),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            SN(nn.Conv2d(cnum*8, cnum*8, kernel_size=3, stride=2, padding=1)),
+            SN(nn.Conv2d(n_feat*2, n_feat*2, kernel_size=3, stride=2, padding=1)),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
-            SN(nn.Conv2d(cnum*8, cnum*16, kernel_size=3, padding=1)),
+            SN(nn.Conv2d(n_feat*2, n_feat*4, kernel_size=3, padding=1)),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            SN(nn.Conv2d(cnum*16, cnum*16, kernel_size=3, stride=2, padding=1)),
+            SN(nn.Conv2d(n_feat*4, n_feat*4, kernel_size=3, stride=2, padding=1)),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
-            SN(nn.Conv2d(cnum*16, 1, kernel_size=3, padding=1)),
+            SN(nn.Conv2d(n_feat*4, n_feat*8, kernel_size=3, padding=1)),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            SN(nn.Conv2d(n_feat*8, n_feat*8, kernel_size=3, stride=2, padding=1)),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+
+            SN(nn.Conv2d(n_feat*8, n_feat*16, kernel_size=3, padding=1)),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            SN(nn.Conv2d(n_feat*16, n_feat*16, kernel_size=3, stride=2, padding=1)),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+
+            SN(nn.Conv2d(n_feat*16, 1, kernel_size=3, padding=1)),
             nn.AdaptiveAvgPool2d(1)
         )
 
@@ -143,36 +141,35 @@ class Discriminator(nn.Module):
 
 
 class NMDiscriminator(nn.Module):
-    def __init__(self, c_img=3):
+    def __init__(self, c_img=3, n_feat=64):
         super().__init__()
-        
-        cnum = 64
+
         self.discriminator = nn.Sequential(
-            nn.Conv2d(c_img, cnum, kernel_size=3, padding=1),
+            nn.Conv2d(c_img, n_feat, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
-            nn.Conv2d(cnum, cnum, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-
-            nn.Conv2d(cnum, cnum*2, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(cnum*2, cnum*2, kernel_size=3, padding=1),
+            nn.Conv2d(n_feat, n_feat, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2, stride=2),
 
-            nn.Conv2d(cnum*2, cnum*4, kernel_size=3, padding=1),
+            nn.Conv2d(n_feat, n_feat*2, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
-            nn.Conv2d(cnum*4, cnum*4, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-
-            nn.Conv2d(cnum*4, cnum*8, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(cnum*8, cnum*8, kernel_size=3, padding=1),
+            nn.Conv2d(n_feat*2, n_feat*2, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2, stride=2),
 
-            nn.Conv2d(cnum*8, 1, kernel_size=3, padding=1),
+            nn.Conv2d(n_feat*2, n_feat*4, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(n_feat*4, n_feat*4, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+
+            nn.Conv2d(n_feat*4, n_feat*8, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(n_feat*8, n_feat*8, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+
+            nn.Conv2d(n_feat*8, 1, kernel_size=3, padding=1),
             nn.AdaptiveAvgPool2d(1),
             nn.Sigmoid()
         )
