@@ -1,5 +1,5 @@
 # NatSR_pytorch
-Pytorch implementation of Natural and Realistic Single Image Super-Resolution
+Unofficial Pytorch implementation of Natural and Realistic Single Image Super-Resolution. Official Tensorflow implementation can be found [there](https://github.com/JWSoh/NatSR).
 
 ## Pre-trained Models
 
