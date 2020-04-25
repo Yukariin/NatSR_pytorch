@@ -87,11 +87,15 @@ class SQLDataset(data.Dataset):
 
         if self.transform:
             if np.random.rand() < 0.5:
+                rv = np.random.randint(1, 4)
+                lr = TF.rotate(lr, 90 * rv)
+                hr = TF.rotate(hr, 90 * rv)
+            if np.random.rand() < 0.5:
                 lr = TF.hflip(lr)
                 hr = TF.hflip(hr)
             if np.random.rand() < 0.5:
-                lr = TF.rotate(lr, 90)
-                hr = TF.rotate(hr, 90)
+                lr = TF.vflip(lr)
+                hr = TF.vflip(hr)
 
         return TF.to_tensor(lr), TF.to_tensor(hr)
 
